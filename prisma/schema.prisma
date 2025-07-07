@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String
+  role      Role      @default(RENTER)
+  createdAt DateTime  @default(now())
+
+  // Relacionamento com mensagens enviadas e recebidas
+  sentMessages     Message[] @relation("Sender")
+  receivedMessages Message[] @relation("Receiver")
+}
+
+model Message {
+  id         Int       @id @default(autoincrement())
+  content    String
+  createdAt  DateTime  @default(now())
+
+  // Relacionamentos
+  senderId   Int
+  receiverId Int
+  sender     User      @relation("Sender", fields: [senderId], references: [id])
+  receiver   User      @relation("Receiver", fields: [receiverId], references: [id])
+}
+
+enum Role {
+  RENTER   // Quem procura imóveis
+  OWNER    // Quem cadastra imóveis
+  ADMIN    // Quem gerencia o sistema
+}
