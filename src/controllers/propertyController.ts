@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
+import logger from '../utils/logger';
 
 // [POST] /properties – Criar imóvel (somente OWNER)
 export async function createProperty(
@@ -7,22 +8,27 @@ export async function createProperty(
   res: Response
 ): Promise<void> {
   const { title, description, price, location } = req.body;
-
-  if (!title || !description || !price || !location) {
-    res.status(400).json({ message: 'Campos obrigatórios ausentes.' });
-    return;
-  }
-
   const user = req.user;
+
   if (!user) {
+    logger.warn('Tentativa de criação de imóvel sem autenticação');
     res.status(401).json({ message: 'Usuário não autenticado.' });
     return;
   }
 
   if (user.role !== 'OWNER') {
+    logger.warn(`Usuário ID ${user.id} tentou criar imóvel sem permissão`);
     res
       .status(403)
       .json({ message: 'Apenas proprietários podem cadastrar imóveis.' });
+    return;
+  }
+
+  if (!title || !description || !price || !location) {
+    logger.warn(
+      `Campos obrigatórios ausentes na criação de imóvel pelo usuário ID ${user.id}`
+    );
+    res.status(400).json({ message: 'Campos obrigatórios ausentes.' });
     return;
   }
 
@@ -37,9 +43,10 @@ export async function createProperty(
       },
     });
 
+    logger.info(`Imóvel criado com sucesso pelo usuário ID ${user.id}`);
     res.status(201).json(property);
   } catch (error) {
-    console.error(error);
+    logger.error(`Erro ao criar imóvel pelo usuário ID ${user.id}: ${error}`);
     res.status(500).json({ message: 'Erro ao criar imóvel.' });
   }
 }
@@ -59,9 +66,10 @@ export async function listAvailableProperties(
       },
     });
 
+    logger.info('Lista de imóveis disponíveis carregada');
     res.status(200).json(properties);
   } catch (error) {
-    console.error(error);
+    logger.error(`Erro ao buscar imóveis disponíveis: ${error}`);
     res.status(500).json({ message: 'Erro ao buscar imóveis.' });
   }
 }
@@ -74,11 +82,15 @@ export async function listMyProperties(
   const user = req.user;
 
   if (!user) {
+    logger.warn('Tentativa de acesso aos imóveis sem autenticação');
     res.status(401).json({ message: 'Usuário não autenticado.' });
     return;
   }
 
   if (user.role !== 'OWNER') {
+    logger.warn(
+      `Usuário ID ${user.id} tentou acessar imóveis que não são dele`
+    );
     res
       .status(403)
       .json({ message: 'Acesso permitido apenas a proprietários.' });
@@ -90,9 +102,12 @@ export async function listMyProperties(
       where: { ownerId: user.id },
     });
 
+    logger.info(`Imóveis listados para o proprietário ID ${user.id}`);
     res.status(200).json(myProperties);
   } catch (error) {
-    console.error(error);
+    logger.error(
+      `Erro ao buscar imóveis do proprietário ID ${user.id}: ${error}`
+    );
     res.status(500).json({ message: 'Erro ao buscar seus imóveis.' });
   }
 }

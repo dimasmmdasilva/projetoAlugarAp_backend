@@ -1,40 +1,46 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import logger from './utils/logger';
 
-// Carrega variáveis do arquivo .env antes de qualquer outra coisa
+// Carrega variáveis do .env
 dotenv.config();
 
-// Importa rotas organizadas por domínio da aplicação
+// Importa rotas organizadas por domínio
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import propertyRoutes from './routes/propertyRoutes';
 import messageRoutes from './routes/messageRoutes';
+import bookingRoutes from './routes/bookingRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 const app = express();
 
 // Middlewares globais
-app.use(cors()); // Permite requisições de origens diferentes (útil para frontend separado)
-app.use(express.json()); // Habilita o express a entender JSON no corpo das requisições
+app.use(cors());
+app.use(express.json());
 
-// Rota de status da API
+// Rota de status
 app.get('/', (req: Request, res: Response) => {
   res.send('API rodando com sucesso!');
 });
 
-// Rotas organizadas por contexto
-app.use('/auth', authRoutes); // Registro, verificação de e-mail e login
-app.use('/users', userRoutes); // Funcionalidades específicas por tipo de usuário
-app.use('/properties', propertyRoutes); // Cadastro e listagem de imóveis (público e proprietário)
-app.use('/messages', messageRoutes); // Sistema de mensagens privadas
+// Rotas da aplicação
+app.use('/auth', authRoutes);
+app.use('/users', userRoutes);
+app.use('/properties', propertyRoutes);
+app.use('/messages', messageRoutes);
+app.use('/bookings', bookingRoutes);
+app.use('/admin', adminRoutes);
 
-// Tratamento para rotas inexistentes
+// Rota não encontrada
 app.use((req: Request, res: Response) => {
+  logger.warn(`Rota não encontrada: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ message: 'Rota não encontrada' });
 });
 
 // Inicialização do servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  logger.info(`Servidor rodando na porta ${PORT}`);
 });
