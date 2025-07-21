@@ -12,6 +12,14 @@ model User {
   name             String
   email            String   @unique
   password         String
+  tempPassword     String?  // usada temporariamente em troca de senha
+  cpf              String   @unique
+  rg               String
+  telefone         String
+  endereco         String
+  numero           String
+  complemento      String?  // opcional
+  cep              String
   role             Role     @default(RENTER)
   isVerified       Boolean  @default(false)
   verificationCode String?
@@ -20,20 +28,18 @@ model User {
   // Relacionamentos
   sentMessages     Message[]  @relation("Sender")
   receivedMessages Message[]  @relation("Receiver")
-  properties       Property[] @relation("OwnerProperties") // Imóveis criados pelo usuário OWNER
-  bookings         Booking[] // Reservas feitas pelo usuário
+  properties       Property[] @relation("OwnerProperties")
+  bookings         Booking[]
 }
 
 model Message {
-  id        Int      @id @default(autoincrement())
-  content   String
-  createdAt DateTime @default(now())
-
-  senderId Int
-  sender   User @relation("Sender", fields: [senderId], references: [id])
-
+  id         Int      @id @default(autoincrement())
+  content    String
+  createdAt  DateTime @default(now())
+  senderId   Int
+  sender     User     @relation("Sender", fields: [senderId], references: [id])
   receiverId Int
-  receiver   User @relation("Receiver", fields: [receiverId], references: [id])
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id])
 }
 
 model Property {
@@ -46,8 +52,7 @@ model Property {
   ownerId     Int
   owner       User     @relation("OwnerProperties", fields: [ownerId], references: [id])
   createdAt   DateTime @default(now())
-
-  bookings Booking[] // Reservas associadas a este imóvel
+  bookings    Booking[]
 }
 
 model Booking {

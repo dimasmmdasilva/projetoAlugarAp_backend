@@ -5,16 +5,13 @@ import logger from '../utils/logger';
 import { generateVerificationCode } from '../utils/generateVerificationCode';
 import { sendVerificationEmail } from '../services/emailService';
 
-// [GET] /users/me → Obter perfil do usuário autenticado
+// [GET] /users/me → Obter perfil autenticado
 export async function obterPerfil(req: Request, res: Response) {
   const user = req.user;
-
-  if (!user) {
-    logger.warn('Tentativa de acesso ao perfil sem autenticação');
-    return res.status(401).json({ message: 'Usuário não autenticado.' });
-  }
+  if (!user) return res.status(401).json({ message: 'Não autenticado.' });
 
   try {
+    // Retorna dados do usuário logado
     const perfil = await prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -24,111 +21,148 @@ export async function obterPerfil(req: Request, res: Response) {
         role: true,
         isVerified: true,
         createdAt: true,
+        cpf: true,
+        rg: true,
+        telefone: true,
+        endereco: true,
+        numero: true,
+        complemento: true,
+        cep: true,
       },
     });
 
-    logger.info(`Perfil carregado para o usuário ID ${user.id}`);
     return res.status(200).json(perfil);
   } catch (error) {
-    logger.error(`Erro ao obter perfil do usuário ID ${user.id}: ${error}`);
+    logger.error('Erro ao obter perfil:', error);
     return res.status(500).json({ message: 'Erro ao obter perfil.' });
   }
 }
 
-// [PUT] /users/me → Atualizar nome ou e-mail (com revalidação se mudar e-mail)
+// [PUT] /users/me → Atualizar dados com nova verificação por e-mail
 export async function atualizarPerfil(req: Request, res: Response) {
   const user = req.user;
-  const { name, email } = req.body;
+  const { name, email, telefone, endereco, numero, complemento, cep } =
+    req.body;
 
-  if (!user) {
-    logger.warn('Tentativa de atualização de perfil sem autenticação');
-    return res.status(401).json({ message: 'Usuário não autenticado.' });
-  }
+  if (!user) return res.status(401).json({ message: 'Não autenticado.' });
 
   try {
-    const usuarioAtual = await prisma.user.findUnique({
-      where: { id: user.id },
-    });
-
-    if (!usuarioAtual) {
+    // Busca dados atuais
+    const usuario = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!usuario)
       return res.status(404).json({ message: 'Usuário não encontrado.' });
-    }
 
-    const atualizaEmail = email && email !== usuarioAtual.email;
+    // Verifica se houve mudanças
+    const mudou =
+      usuario.name !== name ||
+      usuario.email !== email ||
+      usuario.telefone !== telefone ||
+      usuario.endereco !== endereco ||
+      usuario.numero !== numero ||
+      usuario.complemento !== complemento ||
+      usuario.cep !== cep;
 
-    const updateData: any = { name };
+    if (!mudou) return res.status(400).json({ message: 'Nada foi alterado.' });
 
-    if (atualizaEmail) {
-      const emailExistente = await prisma.user.findUnique({ where: { email } });
-
-      if (emailExistente) {
-        return res.status(400).json({ message: 'E-mail já está em uso.' });
-      }
-
-      const verificationCode = generateVerificationCode();
-
-      updateData.email = email;
-      updateData.isVerified = false;
-      updateData.verificationCode = verificationCode;
-
-      await sendVerificationEmail(email, verificationCode);
-      logger.info(`E-mail alterado para ${email}. Novo código enviado.`);
-    }
-
-    const atualizado = await prisma.user.update({
+    // Gera código e atualiza dados
+    const verificationCode = generateVerificationCode();
+    await prisma.user.update({
       where: { id: user.id },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isVerified: true,
-        createdAt: true,
+      data: {
+        name,
+        email,
+        telefone,
+        endereco,
+        numero,
+        complemento,
+        cep,
+        isVerified: false,
+        verificationCode,
       },
     });
 
-    logger.info(`Perfil atualizado para o usuário ID ${user.id}`);
+    await sendVerificationEmail(email, verificationCode);
+
     return res.status(200).json({
-      message: atualizaEmail
-        ? 'Perfil atualizado. Confirme o novo e-mail.'
-        : 'Perfil atualizado com sucesso.',
-      user: atualizado,
+      message: 'Dados atualizados. Confirme o código enviado por e-mail.',
     });
   } catch (error) {
-    logger.error(`Erro ao atualizar perfil do usuário ID ${user.id}: ${error}`);
+    logger.error('Erro ao atualizar perfil:', error);
     return res.status(500).json({ message: 'Erro ao atualizar perfil.' });
   }
 }
 
-// [PUT] /users/password → Atualizar senha
-export async function atualizarSenha(req: Request, res: Response) {
+// [PUT] /users/password → Solicita troca de senha com verificação
+export async function solicitarTrocaSenha(req: Request, res: Response) {
   const user = req.user;
   const { senhaAtual, novaSenha } = req.body;
 
-  if (!user) {
-    logger.warn('Tentativa de troca de senha sem autenticação');
-    return res.status(401).json({ message: 'Usuário não autenticado.' });
-  }
+  if (!user) return res.status(401).json({ message: 'Não autenticado.' });
 
   try {
+    // Verifica a senha atual
     const usuario = await prisma.user.findUnique({ where: { id: user.id } });
-
     if (!usuario || !(await bcrypt.compare(senhaAtual, usuario.password))) {
-      logger.warn(`Senha atual incorreta para o usuário ID ${user.id}`);
       return res.status(400).json({ message: 'Senha atual incorreta.' });
     }
 
-    const novaHash = await bcrypt.hash(novaSenha, 10);
+    // Gera código e armazena senha temporária
+    const code = generateVerificationCode();
+    const tempHash = await bcrypt.hash(novaSenha, 10);
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: novaHash },
+      data: {
+        tempPassword: tempHash,
+        isVerified: false,
+        verificationCode: code,
+      },
     });
 
-    logger.info(`Senha atualizada com sucesso para o usuário ID ${user.id}`);
-    return res.status(200).json({ message: 'Senha atualizada com sucesso.' });
+    await sendVerificationEmail(usuario.email, code);
+
+    return res.status(200).json({ message: 'Código de verificação enviado.' });
   } catch (error) {
-    logger.error(`Erro ao atualizar senha do usuário ID ${user.id}: ${error}`);
-    return res.status(500).json({ message: 'Erro ao atualizar senha.' });
+    logger.error('Erro ao solicitar troca de senha:', error);
+    return res
+      .status(500)
+      .json({ message: 'Erro ao solicitar troca de senha.' });
+  }
+}
+
+// [POST] /users/verify → Confirmar código de verificação
+export async function confirmarCodigo(req: Request, res: Response) {
+  const user = req.user;
+  const { code } = req.body;
+
+  if (!user) return res.status(401).json({ message: 'Não autenticado.' });
+
+  try {
+    // Verifica código do usuário
+    const usuario = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!usuario || usuario.verificationCode !== code) {
+      return res.status(400).json({ message: 'Código inválido.' });
+    }
+
+    // Prepara dados de atualização
+    const updateData: any = {
+      isVerified: true,
+      verificationCode: null,
+    };
+
+    // Aplica nova senha se houver
+    if (usuario.tempPassword) {
+      updateData.password = usuario.tempPassword;
+      updateData.tempPassword = null;
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: updateData });
+
+    return res
+      .status(200)
+      .json({ message: 'Verificação concluída com sucesso.' });
+  } catch (error) {
+    logger.error('Erro ao confirmar código:', error);
+    return res.status(500).json({ message: 'Erro ao confirmar código.' });
   }
 }

@@ -1,17 +1,18 @@
 import { createLogger, format, transports } from 'winston';
 
+// Cria instância do logger com configuração personalizada
 const logger = createLogger({
-  level: 'info', // níveis: error, warn, info, http, verbose, debug, silly
+  level: 'info', // nível mínimo de log: info, warn, error, etc.
   format: format.combine(
-    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), // adiciona data e hora
     format.printf(({ timestamp, level, message }) => {
-      return `[${timestamp}] ${level.toUpperCase()}: ${message}`;
+      return `[${timestamp}] ${level.toUpperCase()}: ${message}`; // formato do log
     })
   ),
   transports: [
-    new transports.Console(),
-    new transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new transports.File({ filename: 'logs/combined.log' }),
+    new transports.Console(), // exibe no console
+    new transports.File({ filename: 'logs/error.log', level: 'error' }), // salva erros
+    new transports.File({ filename: 'logs/combined.log' }), // salva todos os logs
   ],
 });
 

@@ -3,15 +3,29 @@ import { authMiddleware } from '../middlewares/authMiddleware';
 import { roleMiddleware } from '../middlewares/roleMiddleware';
 import { asyncHandler } from '../middlewares/asyncHandler';
 import { Role } from '@prisma/client';
+
 import {
+  confirmarCodigo,
   obterPerfil,
   atualizarPerfil,
-  atualizarSenha,
+  solicitarTrocaSenha,
 } from '../controllers/userController';
 
 const router = Router();
 
-// Testes de acesso por papel de usuário
+// [POST] /users/verify → Confirmar código de verificação
+router.post('/verify', authMiddleware, asyncHandler(confirmarCodigo));
+
+// [GET] /users/me → Obter perfil do usuário autenticado
+router.get('/me', authMiddleware, asyncHandler(obterPerfil));
+
+// [PUT] /users/me → Atualizar dados do usuário com verificação por e-mail
+router.put('/me', authMiddleware, asyncHandler(atualizarPerfil));
+
+// [PUT] /users/password → Solicitar troca de senha com verificação
+router.put('/password', authMiddleware, asyncHandler(solicitarTrocaSenha));
+
+// [GET] /users/admin-only → Acesso restrito a usuários com papel ADMIN
 router.get(
   '/admin-only',
   authMiddleware,
@@ -21,6 +35,7 @@ router.get(
   })
 );
 
+// [GET] /users/owner-only → Acesso restrito a usuários com papel OWNER
 router.get(
   '/owner-only',
   authMiddleware,
@@ -30,6 +45,7 @@ router.get(
   })
 );
 
+// [GET] /users/renter-only → Acesso restrito a usuários com papel RENTER
 router.get(
   '/renter-only',
   authMiddleware,
@@ -38,10 +54,5 @@ router.get(
     res.status(200).json({ message: 'Acesso autorizado para RENTER' });
   })
 );
-
-// Endpoints de perfil do usuário autenticado
-router.get('/me', authMiddleware, asyncHandler(obterPerfil)); // Ver perfil
-router.put('/me', authMiddleware, asyncHandler(atualizarPerfil)); // Atualizar nome ou e-mail
-router.put('/password', authMiddleware, asyncHandler(atualizarSenha)); // Atualizar senha
 
 export default router;

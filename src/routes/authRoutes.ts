@@ -7,13 +7,13 @@ import {
 
 const router = Router();
 
-// Registro de novo usuário + envio de código por e-mail
+// [POST] /auth/register → Registro de novo usuário com código de verificação por e-mail
 router.post('/register', startRegister);
 
-// Verificação de código enviado para o e-mail
+// [POST] /auth/verify → Verificação do código enviado por e-mail
 router.post('/verify', verifyEmail);
 
-// Login apenas se usuário estiver verificado
+// [POST] /auth/login → Login apenas para usuários já verificados
 router.post('/login', login);
 
 export default router;
